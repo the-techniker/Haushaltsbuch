@@ -835,8 +835,9 @@ async function loadUebersicht() {
   statusEl.style.background = '';
 
   try {
-    const res = await fetchScript(url, { action: 'getData', month: monthStr });
-    cachedData = res.rows || [];
+    const res = await fetchScript(url, { action: 'getData' });
+    // client-side filter – works regardless of Apps Script date format (string or ISO timestamp)
+    cachedData = (res.rows || []).filter(r => String(r['Datum']).slice(0, 7) === monthStr);
     const varCount = cachedData.filter(r => r['Typ'] === 'variabel').length;
     const einCount = cachedData.filter(r => r['Typ'] === 'einnahme').length;
     statusEl.textContent = `✓ ${cachedData.length} Einträge (${varCount} variabel, ${einCount} Einnahmen) für ${monthStr}`;
@@ -857,8 +858,9 @@ async function loadRecent() {
   const now = new Date();
   const monthStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
   try {
-    const res = await fetchScript(url, { action: 'getData', month: monthStr });
+    const res = await fetchScript(url, { action: 'getData' });
     const rows = (res.rows || [])
+      .filter(r => String(r['Datum']).slice(0, 7) === monthStr)
       .sort((a, b) => String(b['Datum']).localeCompare(String(a['Datum'])))
       .slice(0, 10);
     const el = document.getElementById('recent-list');

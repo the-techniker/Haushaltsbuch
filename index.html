@@ -660,6 +660,7 @@ document.addEventListener('DOMContentLoaded', () => {
   checkSetup();
   loadFixkostenLocal();
   updateMonthLabel();
+  loadRecent();
 });
 
 function setTodayDate() {
@@ -731,6 +732,7 @@ async function saveEntry() {
     document.getElementById('inp-betrag').value = '';
     document.getElementById('inp-notiz').value = '';
     cachedData = null;
+    loadRecent();
     setTimeout(() => { document.getElementById('status-main').style.display = 'none'; }, 2000);
   } catch(e) {
     showStatus('status-main', 'Fehler: ' + e.message, 'err');
@@ -815,7 +817,7 @@ function changeMonth(dir) {
 
 async function loadUebersicht() {
   const url = getUrl();
-  const monthStr = viewMonth.toISOString().slice(0, 7);
+  const monthStr = viewMonth.getFullYear() + '-' + String(viewMonth.getMonth() + 1).padStart(2, '0');
 
   if (!url) {
     renderUebersicht([], getLocalFixkosten());
@@ -827,7 +829,38 @@ async function loadUebersicht() {
     cachedData = res.rows || [];
     renderUebersicht(cachedData, getLocalFixkosten());
   } catch(e) {
+    document.getElementById('all-entries').innerHTML = `<div class="empty-state" style="color:var(--red)">Fehler beim Laden: ${e.message}</div>`;
     renderUebersicht([], getLocalFixkosten());
+  }
+}
+
+async function loadRecent() {
+  const url = getUrl();
+  if (!url) return;
+  const now = new Date();
+  const monthStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  try {
+    const res = await fetchScript(url, { action: 'getData', month: monthStr });
+    const rows = (res.rows || [])
+      .sort((a, b) => String(b['Datum']).localeCompare(String(a['Datum'])))
+      .slice(0, 10);
+    const el = document.getElementById('recent-list');
+    if (rows.length === 0) { el.innerHTML = '<div class="empty-state">Keine Einträge diesen Monat</div>'; return; }
+    el.innerHTML = rows.map(r => {
+      const isIncome = r['Typ'] === 'einnahme';
+      return `<div class="entry-row">
+        <div class="entry-left">
+          <div class="entry-cat">${r['Kategorie'] || '–'}</div>
+          <div class="entry-note">${r['Notiz'] || ''}</div>
+        </div>
+        <div>
+          <div class="entry-amount ${isIncome ? 'income' : ''}">${isIncome ? '+' : '-'} ${fmt(r['Betrag'])}</div>
+          <div class="entry-date">${formatDate(r['Datum'])}</div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    document.getElementById('recent-list').innerHTML = `<div class="empty-state" style="color:var(--red)">Fehler: ${e.message}</div>`;
   }
 }
 

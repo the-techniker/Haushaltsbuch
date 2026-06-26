@@ -668,7 +668,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function setTodayDate() {
   const d = new Date();
-  document.getElementById('inp-datum').value = d.toISOString().split('T')[0];
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  document.getElementById('inp-datum').value = y + '-' + m + '-' + day;
 }
 
 function checkSetup() {
@@ -768,7 +771,8 @@ function buildFixForm() {
 }
 
 function loadFixkostenLocal() {
-  const saved = JSON.parse(localStorage.getItem('hb_fixkosten') || '{}');
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem('hb_fixkosten') || '{}'); } catch(e) { saved = {}; }
   FIXKOSTEN_STRUKTUR.forEach(gruppe => {
     gruppe.items.forEach(item => {
       const safeId = 'fix_' + item.replace(/[^a-zA-Z0-9]/g, '_');
@@ -869,8 +873,8 @@ async function loadRecent() {
       const isIncome = r['Typ'] === 'einnahme';
       return `<div class="entry-row">
         <div class="entry-left">
-          <div class="entry-cat">${r['Kategorie'] || '–'}</div>
-          <div class="entry-note">${r['Notiz'] || ''}</div>
+          <div class="entry-cat">${esc(r['Kategorie']) || '–'}</div>
+          <div class="entry-note">${esc(r['Notiz'])}</div>
         </div>
         <div>
           <div class="entry-amount ${isIncome ? 'income' : ''}">${isIncome ? '+' : '-'} ${fmt(r['Betrag'])}</div>
@@ -884,7 +888,8 @@ async function loadRecent() {
 }
 
 function getLocalFixkosten() {
-  const saved = JSON.parse(localStorage.getItem('hb_fixkosten') || '{}');
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem('hb_fixkosten') || '{}'); } catch(e) { saved = {}; }
   const items = [];
   FIXKOSTEN_STRUKTUR.forEach(gruppe => {
     gruppe.items.forEach(item => {
@@ -932,7 +937,7 @@ function renderUebersicht(rows, fixItems) {
     catEl.innerHTML = sorted.map(([k, v]) => `
       <div class="cat-row" style="flex-direction:column;align-items:stretch;padding:10px 0;">
         <div style="display:flex;justify-content:space-between;">
-          <span class="cat-name">${k}</span>
+          <span class="cat-name">${esc(k)}</span>
           <span class="cat-amount">${fmt(v)}</span>
         </div>
         <div class="bar-track"><div class="bar-fill" style="width:${Math.round(v/max*100)}%"></div></div>
@@ -946,7 +951,7 @@ function renderUebersicht(rows, fixItems) {
   } else {
     fixEl.innerHTML = fixItems.map(i => `
       <div class="cat-row">
-        <span class="cat-name">${i.name}</span>
+        <span class="cat-name">${esc(i.name)}</span>
         <span class="cat-amount">${fmt(i.betrag)}</span>
       </div>`).join('') +
       `<div class="cat-row" style="border-top:0.5px solid var(--border2);margin-top:4px;">
@@ -965,8 +970,8 @@ function renderUebersicht(rows, fixItems) {
       const isIncome = r['Typ'] === 'einnahme';
       return `<div class="entry-row">
         <div class="entry-left">
-          <div class="entry-cat">${r['Kategorie'] || '–'}</div>
-          <div class="entry-note">${r['Notiz'] || ''} ${r['Person'] && isIncome ? '· ' + r['Person'] : ''}</div>
+          <div class="entry-cat">${esc(r['Kategorie']) || '–'}</div>
+          <div class="entry-note">${esc(r['Notiz'])} ${r['Person'] && isIncome ? '· ' + esc(r['Person']) : ''}</div>
         </div>
         <div>
           <div class="entry-amount ${isIncome ? 'income' : ''}">${isIncome ? '+' : '-'} ${fmt(r['Betrag'])}</div>
@@ -1006,6 +1011,12 @@ function copyScript() {
 }
 
 // ============ HELPERS ============
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function fmt(val) {
   return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(val || 0);
 }
@@ -1026,12 +1037,23 @@ function showStatus(id, msg, type) {
 async function fetchScript(url, payload) {
   const token = getToken();
   if (!token) throw new Error('Kein Token hinterlegt. Bitte Setup aufrufen.');
-  const res = await fetch(url, {
-    method: 'POST',
-    body: JSON.stringify({ ...payload, token }),
-    headers: { 'Content-Type': 'text/plain' },
-    redirect: 'follow'
-  });
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(), 30000);
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      body: JSON.stringify({ ...payload, token }),
+      headers: { 'Content-Type': 'text/plain' },
+      redirect: 'follow',
+      signal: ctrl.signal
+    });
+  } catch(e) {
+    clearTimeout(tid);
+    if (e.name === 'AbortError') throw new Error('Zeitüberschreitung (30s) – bitte Verbindung prüfen und nochmal versuchen.');
+    throw e;
+  }
+  clearTimeout(tid);
   const text = await res.text();
   let json;
   try {

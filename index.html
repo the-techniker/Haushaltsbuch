@@ -634,10 +634,17 @@ function getData(ss, month) {
   if (!sheet || sheet.getLastRow() < 2) return { ok: true, rows: [] };
   var data = sheet.getDataRange().getValues();
   var header = data[0];
+  var tz = Session.getScriptTimeZone();
   var rows = [];
   for (var i = 1; i < data.length; i++) {
     var row = {};
-    for (var j = 0; j < header.length; j++) row[header[j]] = data[i][j];
+    for (var j = 0; j < header.length; j++) {
+      var val = data[i][j];
+      if (header[j] === 'Datum' && val instanceof Date) {
+        val = Utilities.formatDate(val, tz, 'yyyy-MM-dd');
+      }
+      row[header[j]] = val;
+    }
     if (!month || String(row['Datum']).startsWith(month)) rows.push(row);
   }
   return { ok: true, rows: rows };

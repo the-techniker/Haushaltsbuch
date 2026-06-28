@@ -634,7 +634,7 @@ function getData(ss, month) {
   if (!sheet || sheet.getLastRow() < 2) return { ok: true, rows: [] };
   var data = sheet.getDataRange().getValues();
   var header = data[0];
-  var tz = Session.getScriptTimeZone();
+  var tz = ss.getSpreadsheetTimeZone();
   var rows = [];
   for (var i = 1; i < data.length; i++) {
     var row = {};

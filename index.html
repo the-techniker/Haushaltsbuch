@@ -848,7 +848,7 @@ async function loadUebersicht() {
   try {
     const res = await fetchScript(url, { action: 'getData' });
     // client-side filter – works regardless of Apps Script date format (string or ISO timestamp)
-    cachedData = (res.rows || []).filter(r => String(r['Datum']).slice(0, 7) === monthStr);
+    cachedData = (res.rows || []).filter(r => normalizeDatum(r['Datum']).slice(0, 7) === monthStr);
     const varCount = cachedData.filter(r => r['Typ'] === 'variabel').length;
     const einCount = cachedData.filter(r => r['Typ'] === 'einnahme').length;
     statusEl.textContent = `✓ ${cachedData.length} Einträge (${varCount} variabel, ${einCount} Einnahmen) für ${monthStr}`;
@@ -871,7 +871,7 @@ async function loadRecent() {
   try {
     const res = await fetchScript(url, { action: 'getData' });
     const rows = (res.rows || [])
-      .filter(r => String(r['Datum']).slice(0, 7) === monthStr)
+      .filter(r => normalizeDatum(r['Datum']).slice(0, 7) === monthStr)
       .sort((a, b) => String(b['Datum']).localeCompare(String(a['Datum'])))
       .slice(0, 10);
     const el = document.getElementById('recent-list');
@@ -1018,6 +1018,13 @@ function copyScript() {
 }
 
 // ============ HELPERS ============
+function normalizeDatum(d) {
+  const s = String(d == null ? '' : d);
+  if (s.length <= 10) return s;
+  const dt = new Date(s);
+  return dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+}
+
 function esc(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -1030,8 +1037,7 @@ function fmt(val) {
 
 function formatDate(d) {
   if (!d) return '';
-  const s = String(d).slice(0, 10);
-  const parts = s.split('-');
+  const parts = normalizeDatum(d).split('-');
   return parts[2] + '.' + parts[1] + '.' + parts[0];
 }
 
